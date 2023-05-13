@@ -24,6 +24,8 @@ var dsn = flag.String("dsn", "postgres://username:password@hostname:port/databas
 var rdbAddr = flag.String("ra", "redis-addres:redis-port", "Redis addres\n{ip}:{port}")
 
 func main() {
+	flag.Parse()
+
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			log.Println(err)
@@ -32,12 +34,11 @@ func main() {
 	})
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     *rdbAddr,
 		Password: "",
 		DB:       0,
 	})
 
-	flag.Parse()
 	dbPool, err := pgxpool.New(context.Background(), *dsn)
 	if err != nil {
 		log.Fatal(err)
