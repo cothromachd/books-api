@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type Book struct {
@@ -18,12 +20,8 @@ type Book struct {
 	Author string `json:"author"`
 }
 
-var	user  = flag.String("u", "username", "Username to connect database\npostgres://{username}:{password}@{hostname}:{port}/{database-name}")
-var	password  = flag.String("pw", "password", "Password to connect database\npostgres://{username}:{password}@{hostname}:{port}/{database-name}")
-var hostname  = flag.String("hn", "hostname", "Hostname to connect database\npostgres://{username}:{password}@{hostname}:{port}/{database-name}")
-var	port  = flag.String("p", "5432", "Port to connect database\npostgres://{username}:{password}@{hostname}:{port}/{database-name}")
-var	database  = flag.String("db", "database-name", "Database name to connect\npostgres://{username}:{password}@{hostname}:{port}/{database-name}")
-
+var dsn = flag.String("dsn", "postgres://username:password@hostname:port/database-name", "Connect to database string\nExample: postgres://{username}:{password}@{hostname}:{port}/{database-name}")
+var rdbAddr = flag.String("ra", "redis-addres:redis-port", "Redis addres\n{ip}:{port}")
 
 func main() {
 	app := fiber.New(fiber.Config{
@@ -33,8 +31,14 @@ func main() {
 		},
 	})
 
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+
 	flag.Parse()
-	dbPool, err := pgxpool.New(context.Background(), fmt.Sprintf("postgres://%s:%s@%s:%s/%s", *user, *password, *hostname, *port, *database))
+	dbPool, err := pgxpool.New(context.Background(), *dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,9 +47,23 @@ func main() {
 	app.Get("/book/:id", func(c *fiber.Ctx) error {
 		book := &Book{}
 		bookId := c.Params("id")
-		bookRow := dbPool.QueryRow(context.Background(), "SELECT * FROM books WHERE id=$1;", bookId)
-		err := bookRow.Scan(&book.Id, &book.Title, &book.Author)
-		if err != nil {
+		bookJson, err := rdb.Get(context.Background(), bookId).Result()
+		if err == redis.Nil {
+			bookRow := dbPool.QueryRow(context.Background(), "SELECT * FROM books WHERE id=$1;", bookId)
+			err := bookRow.Scan(&book.Id, &book.Title, &book.Author)
+			if err != nil {
+				return err
+			}
+
+			bookJson, err := json.Marshal(book)
+			if err != nil {
+				return err
+			}
+
+			rdb.Set(context.Background(), bookId, string(bookJson), time.Hour)
+		} else if err == nil {
+			return c.JSON(bookJson)
+		} else {
 			return err
 		}
 
@@ -76,12 +94,20 @@ func main() {
 	// POST /book/create
 	app.Post("/book/create", func(c *fiber.Ctx) error {
 		book := &Book{}
-		json.NewDecoder(bytes.NewReader(c.Body())).Decode(&book)
-		_, err := dbPool.Exec(context.Background(), `INSERT INTO books(title, author) VALUES ($1, $2);`, &book.Title, &book.Author)
+		err := json.NewDecoder(bytes.NewReader(c.Body())).Decode(&book)
 		if err != nil {
 			return err
 		}
 
+		idRow := dbPool.QueryRow(context.Background(), `INSERT INTO books(title, author) VALUES ($1, $2) RETURNING id;`, &book.Title, &book.Author)
+
+		var id int
+		err = idRow.Scan(&id)
+		if err != nil {
+			return err
+		}
+
+		rdb.Set(context.Background(), strconv.Itoa(id), string(c.Body()), time.Hour)
 		return c.SendStatus(fiber.StatusOK)
 	})
 
@@ -100,7 +126,13 @@ func main() {
 	// DELETE /book/delete/1
 	app.Delete("/book/delete/:id", func(c *fiber.Ctx) error {
 		id := c.Params("id")
-		_, err := dbPool.Exec(context.Background(), "DELETE FROM books WHERE id=$1", id)
+		
+		err := rdb.Del(context.Background(), "id").Err()
+		if err != nil {
+			return err
+		}
+
+		_, err = dbPool.Exec(context.Background(), "DELETE FROM books WHERE id=$1", id)
 		if err != nil {
 			return err
 		}
