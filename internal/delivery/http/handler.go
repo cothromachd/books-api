@@ -9,7 +9,7 @@ type BookUseCase interface {
 	GetBooks() ([]entity.Book, error)
 	GetBook(id string) (entity.Book, error)
 	PostBook(book entity.Book) error
-	UpdateBook(book entity.Book) error
+	UpdateBook(id string, book entity.Book) error
 	DeleteBook(id string) error
 }
 
@@ -27,7 +27,7 @@ func NewHandler(app *fiber.App, uc BookUseCase) *fiber.App {
 	router.Get("/all", h.GetBooks)
 	router.Get("/:id", h.GetBook)
 	router.Post("/create", h.CreateBook)
-	router.Put("/update", h.UpdateBook)
+	router.Put("/update/:id", h.UpdateBook)
 	router.Delete("/delete/:id", h.DeleteBook)
 
 	return app

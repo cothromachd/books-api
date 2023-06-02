@@ -7,14 +7,15 @@ import (
 type Storage interface {
 	GetBook(string) (entity.Book, error)
 	GetBooks() ([]entity.Book, error)
-	PostBook(title, author string) (int, error)
-	UpdateBook(book entity.Book) error
+	PostBook(title, author string) (string, error)
+	UpdateBook(id string, book entity.Book) error
 	DeleteBook(id string) error
 }
 
 type Cache interface {
+	HasBook(id string) (bool, error)
 	GetBook(id string) (entity.Book, error)
-	SetBook(id int, book entity.Book) error
+	SetBook(id string, book entity.Book) error
 	DeleteBook(string) error
 }
 
@@ -40,19 +41,20 @@ func (uc *Book) GetBooks() ([]entity.Book, error) {
 }
 
 func (uc *Book) GetBook(id string) (entity.Book, error) {
-	book, err := uc.cache.GetBook(id)
-	if err != nil && err.Error() == "redis: nil" {
-		book, err := uc.storage.GetBook(id)
-		if err != nil {
-			return entity.Book{}, err
-		}
-
-		return book, nil
-	} else if err != nil {
+	exists, err := uc.cache.HasBook(id)
+	if err != nil {
 		return entity.Book{}, err
-	} else {
-		return book, nil
 	}
+	if exists {
+		return uc.cache.GetBook(id)
+	}
+	
+	book, err := uc.storage.GetBook(id)
+	if err != nil {
+		return entity.Book{}, err
+	}
+
+	return book, uc.cache.SetBook(id, book)
 }
 
 func (uc *Book) PostBook(book entity.Book) error {
@@ -69,13 +71,13 @@ func (uc *Book) PostBook(book entity.Book) error {
 	return nil
 }
 
-func (uc *Book) UpdateBook(book entity.Book) error  {
-	err := uc.storage.UpdateBook(book)
+func (uc *Book) UpdateBook(id string, book entity.Book) error  {
+	err := uc.storage.UpdateBook(id, book)
 	if err != nil {
 		return err
 	}
 
-	err = uc.cache.SetBook(book.Id, book)
+	err = uc.cache.SetBook(id, book)
 	if err != nil {
 		return err
 	}

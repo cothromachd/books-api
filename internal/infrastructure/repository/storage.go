@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/cothromachd/books-api/internal/config"
 	"github.com/cothromachd/books-api/internal/entity"
@@ -19,6 +20,10 @@ func NewPostgresStorage(cfg *config.Config) (*PostgresStorage, error) {
 	}
 
 	return &PostgresStorage{pgPool: pgPool}, nil
+}
+
+func (s PostgresStorage) Close() {
+	s.pgPool.Close()
 }
 
 func (s *PostgresStorage) GetBook(id string) (entity.Book, error) {
@@ -52,20 +57,21 @@ func (s *PostgresStorage) GetBooks() ([]entity.Book, error) {
 	return books, nil
 }
 
-func (s *PostgresStorage) PostBook(title, author string) (int, error) {
+func (s *PostgresStorage) PostBook(title, author string) (string, error) {
 	idRow := s.pgPool.QueryRow(context.Background(), `INSERT INTO books(title, author) VALUES ($1, $2) RETURNING id;`, title, author)
 
-	var id int
-	err := idRow.Scan(&id)
+	var bookId int
+	err := idRow.Scan(&bookId)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
+	id := strconv.Itoa(bookId)
 	return id, nil
 }
 
-func (s *PostgresStorage) UpdateBook(book entity.Book) error {
-	_, err := s.pgPool.Exec(context.Background(), `UPDATE books SET title=$1, author=$2 WHERE id=$3;`, book.Title, book.Author, book.Id)
+func (s *PostgresStorage) UpdateBook(id string, book entity.Book) error {
+	_, err := s.pgPool.Exec(context.Background(), `UPDATE books SET title=$1, author=$2 WHERE id=$3;`, book.Title, book.Author, id)
 	if err != nil {
 		return err
 	}

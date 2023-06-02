@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/cothromachd/books-api/internal/config"
@@ -16,12 +15,25 @@ type RedisCache struct {
 
 func NewRedisCache(cfg *config.Config) *RedisCache {
 	rc := redis.NewClient(&redis.Options{
-		Addr: cfg.RDB.Conn,
+		Addr:     cfg.RDB.Conn,
 		Password: "",
-		DB: 0,
+		DB:       0,
 	})
 
 	return &RedisCache{rc: rc}
+}
+
+func (c *RedisCache) HasBook(id string) (bool, error) {
+	exists, err := c.rc.Exists(context.Background(), id).Result()
+	if err != nil {
+		return false, err
+	}
+
+	if exists == 1 {
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 func (c *RedisCache) GetBook(id string) (entity.Book, error) {
@@ -38,13 +50,13 @@ func (c *RedisCache) GetBook(id string) (entity.Book, error) {
 	return book, nil
 }
 
-func (c *RedisCache) SetBook(id int, book entity.Book) error {
+func (c *RedisCache) SetBook(id string, book entity.Book) error {
 	bookJson, err := book.Map()
 	if err != nil {
 		return err
 	}
 
-	err = c.rc.Set(context.Background(), strconv.Itoa(id), bookJson, time.Hour).Err()
+	err = c.rc.Set(context.Background(), id, bookJson, time.Hour).Err()
 	if err != nil {
 		return err
 	}

@@ -6,13 +6,13 @@ import (
 )
 
 func (h *Handler) UpdateBook(ctx *fiber.Ctx) error {
-	bookJson := ctx.Body()
+	bookJson, id := ctx.Body(), ctx.Params("id")
 	book, err := entity.Unmap(string(bookJson))
 	if err != nil {
 		return err
 	}
 
-	err = h.uc.UpdateBook(book)
+	err = h.uc.UpdateBook(id, book)
 	if err != nil {
 		return err
 	}
