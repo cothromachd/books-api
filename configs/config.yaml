@@ -1,0 +1,8 @@
+api:
+  host: "localhost:8080"
+
+db:
+  conn: postgres://khalidmagnificent:190204@localhost:5432/khalidmagnificent
+
+rdb:
+  conn: localhost:6379
