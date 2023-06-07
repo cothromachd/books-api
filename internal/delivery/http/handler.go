@@ -15,7 +15,7 @@ type BookUseCase interface {
 
 type Handler struct {
 	uc BookUseCase
-}	
+}
 
 func NewHandler(app *fiber.App, uc BookUseCase) *fiber.App {
 	h := Handler{

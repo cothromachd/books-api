@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	API API `yaml:"api"`
-	DB DB `yaml:"db"`
+	DB  DB  `yaml:"db"`
 	RDB RDB `yaml:"rdb"`
 }
 

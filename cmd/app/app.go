@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/cothromachd/books-api/internal/config"
-	"github.com/cothromachd/books-api/internal/delivery/http"
-	"github.com/cothromachd/books-api/internal/infrastructure/repository"
+	delivery "github.com/cothromachd/books-api/internal/delivery/http"
+	repo "github.com/cothromachd/books-api/internal/infrastructure/repository"
 	"github.com/cothromachd/books-api/internal/usecase"
 	"github.com/gofiber/fiber/v2"
 )
@@ -39,5 +39,5 @@ func Run() error {
 
 	app = delivery.NewHandler(app, uc)
 
-	return(app.Listen(cfg.API.Host))
+	return (app.Listen(cfg.API.Host))
 }
